@@ -8,8 +8,17 @@ const PseudOIDCProvider: OAuthConfig<any> = {
   id: "pseudoidc",
   name: "PseudOIDC",
   type: "oauth",
-  wellKnown: "https://auth.scramblesolutions.com/.well-known/openid-configuration",
-  authorization: { params: { scope: "openid" } },
+  issuer: "https://auth.scramblesolutions.com",
+  authorization: {
+    url: "https://auth.scramblesolutions.com/oauth2/auth",
+    params: { scope: "openid" }
+  },
+  token: {
+    url: "https://auth.scramblesolutions.com/oauth2/token"
+  },
+  userinfo: {
+    url: "https://auth.scramblesolutions.com/oauth2/userinfo"
+  },
   clientId: process.env.PSEUDOIDC_CLIENT_ID,
   clientSecret: process.env.PSEUDOIDC_CLIENT_SECRET,
   idToken: true,
