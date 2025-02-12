@@ -11,7 +11,11 @@ const PseudOIDCProvider: OAuthConfig<any> = {
   issuer: "https://auth.scramblesolutions.com",
   authorization: {
     url: "https://auth.scramblesolutions.com/oauth2/auth",
-    params: { scope: "openid" }
+    params: {
+      scope: "openid",
+      prompt: "create",  // Use signup flow
+      email: "test@example.com",  // Hardcode for testing
+    }
   },
   token: {
     url: "https://auth.scramblesolutions.com/oauth2/token",
@@ -30,7 +34,6 @@ const PseudOIDCProvider: OAuthConfig<any> = {
       emailVerified: true,
     }
   },
-  // Specify how client credentials should be sent
   client: {
     token_endpoint_auth_method: "client_secret_basic"
   }
