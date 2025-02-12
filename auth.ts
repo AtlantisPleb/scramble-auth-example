@@ -27,22 +27,51 @@ const PseudOIDCProvider: OAuthConfig<any> = {
           "Content-Type": "application/x-www-form-urlencoded",
         },
         body: new URLSearchParams({
-          ...params,
+          grant_type: "authorization_code",
+          code: params.code,
+          redirect_uri: params.redirect_uri,
           client_id: client.client_id,
           client_secret: client.client_secret,
+          code_verifier: params.code_verifier,
         }),
       })
-      return await response.json()
+
+      console.log("Token response status:", response.status)
+      const data = await response.json()
+      console.log("Token response data:", data)
+
+      if (!response.ok) {
+        throw new Error("Failed to get token: " + JSON.stringify(data))
+      }
+
+      return {
+        access_token: data.access_token,
+        token_type: data.token_type,
+        id_token: data.id_token,
+        expires_in: data.expires_in,
+      }
     }
   },
   userinfo: {
-    url: "https://auth.scramblesolutions.com/oauth2/userinfo"
+    url: "https://auth.scramblesolutions.com/oauth2/userinfo",
+    async request({ tokens, provider }) {
+      const response = await fetch(provider.userinfo.url, {
+        headers: {
+          Authorization: `Bearer ${tokens.access_token}`,
+        },
+      })
+      console.log("Userinfo response status:", response.status)
+      const data = await response.json()
+      console.log("Userinfo response data:", data)
+      return data
+    }
   },
   clientId: process.env.PSEUDOIDC_CLIENT_ID,
   clientSecret: process.env.PSEUDOIDC_CLIENT_SECRET,
   idToken: true,
   checks: ["pkce", "state"],
   profile(profile) {
+    console.log("Profile data:", profile)
     return {
       id: profile.sub,
       email: profile.email,
