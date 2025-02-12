@@ -8,77 +8,26 @@ const PseudOIDCProvider: OAuthConfig<any> = {
   id: "pseudoidc",
   name: "PseudOIDC",
   type: "oauth",
-  issuer: "https://auth.scramblesolutions.com",
+  // Remove OIDC-specific settings
   authorization: {
     url: "https://auth.scramblesolutions.com/oauth2/auth",
     params: {
       scope: "openid",
-      prompt: "create",  // Use signup flow
-      email: "test@example.com",  // Hardcode for testing
+      prompt: "create",
+      email: "test@example.com",
+      response_type: "code",
     }
   },
   token: {
     url: "https://auth.scramblesolutions.com/oauth2/token",
-    // Override the token request to match PseudoIDC's expectations
-    async request({ provider, params, client }) {
-      console.log("Token request params:", {
-        grant_type: params.grant_type,
-        code: params.code,
-        redirect_uri: params.redirect_uri,
-        client_id: client.client_id,
-        client_secret: client.client_secret,
-        code_verifier: params.code_verifier,
-      })
-
-      const response = await fetch(provider.token.url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: new URLSearchParams({
-          grant_type: params.grant_type || "authorization_code",
-          code: params.code,
-          redirect_uri: params.redirect_uri,
-          client_id: client.client_id,
-          client_secret: client.client_secret,
-          code_verifier: params.code_verifier,
-        }).toString(),
-      })
-
-      console.log("Token response status:", response.status)
-      const data = await response.text()
-      console.log("Token response body:", data)
-
-      try {
-        const jsonData = JSON.parse(data)
-        console.log("Token response data:", jsonData)
-        return jsonData
-      } catch (e) {
-        console.error("Failed to parse token response:", e)
-        throw new Error(`Invalid token response: ${data}`)
-      }
-    }
+    params: { grant_type: "authorization_code" }
   },
   userinfo: {
-    url: "https://auth.scramblesolutions.com/oauth2/userinfo",
-    async request({ tokens, provider }) {
-      const response = await fetch(provider.userinfo.url, {
-        headers: {
-          Authorization: `Bearer ${tokens.access_token}`,
-        },
-      })
-      console.log("Userinfo response status:", response.status)
-      const data = await response.json()
-      console.log("Userinfo response data:", data)
-      return data
-    }
+    url: "https://auth.scramblesolutions.com/oauth2/userinfo"
   },
   clientId: process.env.PSEUDOIDC_CLIENT_ID,
   clientSecret: process.env.PSEUDOIDC_CLIENT_SECRET,
-  idToken: true,
-  checks: ["pkce", "state"],
   profile(profile) {
-    console.log("Profile data:", profile)
     return {
       id: profile.sub,
       email: profile.email,
