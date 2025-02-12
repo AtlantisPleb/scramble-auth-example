@@ -56,6 +56,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   theme: { logo: "https://authjs.dev/img/logo-sm.png" },
   adapter: UnstorageAdapter(storage),
   providers: [PseudOIDCProvider],
+  basePath: "/api/auth", // Set the base path to match Next.js API routes
   session: { strategy: "jwt" },
   callbacks: {
     authorized({ request, auth }) {
