@@ -33,9 +33,6 @@ const PseudOIDCProvider: OAuthConfig<any> = {
       email: profile.email,
       emailVerified: true,
     }
-  },
-  client: {
-    token_endpoint_auth_method: "client_secret_basic"
   }
 }
 
@@ -59,7 +56,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   theme: { logo: "https://authjs.dev/img/logo-sm.png" },
   adapter: UnstorageAdapter(storage),
   providers: [PseudOIDCProvider],
-  basePath: "/auth",
   session: { strategy: "jwt" },
   callbacks: {
     authorized({ request, auth }) {
