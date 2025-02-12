@@ -1,14 +1,11 @@
 import NextAuth from "next-auth"
 import "next-auth/jwt"
 
-import type { OAuthConfig } from "next-auth/providers/oauth"
-
 // PseudOIDC provider configuration
-const PseudOIDCProvider: OAuthConfig<any> = {
+const PseudOIDCProvider = {
   id: "pseudoidc",
   name: "PseudOIDC",
   type: "oauth",
-  // Remove OIDC-specific settings
   authorization: {
     url: "https://auth.scramblesolutions.com/oauth2/auth",
     params: {
@@ -20,20 +17,64 @@ const PseudOIDCProvider: OAuthConfig<any> = {
   },
   token: {
     url: "https://auth.scramblesolutions.com/oauth2/token",
-    params: { grant_type: "authorization_code" }
   },
   userinfo: {
-    url: "https://auth.scramblesolutions.com/oauth2/userinfo"
+    url: "https://auth.scramblesolutions.com/oauth2/userinfo",
   },
   clientId: process.env.PSEUDOIDC_CLIENT_ID,
   clientSecret: process.env.PSEUDOIDC_CLIENT_SECRET,
-  profile(profile) {
+  // Custom token request
+  async getToken(params) {
+    const response = await fetch("https://auth.scramblesolutions.com/oauth2/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        code: params.code,
+        redirect_uri: params.redirect_uri,
+        client_id: process.env.PSEUDOIDC_CLIENT_ID!,
+        client_secret: process.env.PSEUDOIDC_CLIENT_SECRET!,
+        code_verifier: params.code_verifier,
+      }).toString(),
+    })
+
+    console.log("Token response status:", response.status)
+    const text = await response.text()
+    console.log("Token response body:", text)
+
+    if (!response.ok) {
+      throw new Error(`Token request failed: ${text}`)
+    }
+
+    const tokens = JSON.parse(text)
     return {
-      id: profile.sub,
-      email: profile.email,
+      tokens,
+      profile: {
+        sub: tokens.sub || "unknown",
+        email: tokens.email,
+      },
+    }
+  },
+  // Custom user profile request
+  async getUserProfile(tokens) {
+    const response = await fetch("https://auth.scramblesolutions.com/oauth2/userinfo", {
+      headers: {
+        Authorization: `Bearer ${tokens.access_token}`,
+      },
+    })
+
+    console.log("Profile response status:", response.status)
+    const data = await response.json()
+    console.log("Profile response data:", data)
+
+    return {
+      id: data.sub,
+      email: data.email,
       emailVerified: true,
     }
-  }
+  },
 }
 
 import { createStorage } from "unstorage"
