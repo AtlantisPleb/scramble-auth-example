@@ -21,34 +21,41 @@ const PseudOIDCProvider: OAuthConfig<any> = {
     url: "https://auth.scramblesolutions.com/oauth2/token",
     // Override the token request to match PseudoIDC's expectations
     async request({ provider, params, client }) {
+      console.log("Token request params:", {
+        grant_type: params.grant_type,
+        code: params.code,
+        redirect_uri: params.redirect_uri,
+        client_id: client.client_id,
+        client_secret: client.client_secret,
+        code_verifier: params.code_verifier,
+      })
+
       const response = await fetch(provider.token.url, {
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
         },
         body: new URLSearchParams({
-          grant_type: "authorization_code",
+          grant_type: params.grant_type || "authorization_code",
           code: params.code,
           redirect_uri: params.redirect_uri,
           client_id: client.client_id,
           client_secret: client.client_secret,
           code_verifier: params.code_verifier,
-        }),
+        }).toString(),
       })
 
       console.log("Token response status:", response.status)
-      const data = await response.json()
-      console.log("Token response data:", data)
+      const data = await response.text()
+      console.log("Token response body:", data)
 
-      if (!response.ok) {
-        throw new Error("Failed to get token: " + JSON.stringify(data))
-      }
-
-      return {
-        access_token: data.access_token,
-        token_type: data.token_type,
-        id_token: data.id_token,
-        expires_in: data.expires_in,
+      try {
+        const jsonData = JSON.parse(data)
+        console.log("Token response data:", jsonData)
+        return jsonData
+      } catch (e) {
+        console.error("Failed to parse token response:", e)
+        throw new Error(`Invalid token response: ${data}`)
       }
     }
   },
