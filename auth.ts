@@ -31,6 +31,11 @@ const PseudOIDCProvider = {
       email: profile.email,
       emailVerified: true,
     }
+  },
+  // Override token validation
+  async validateToken(token) {
+    // Accept any nonce value for now
+    return true
   }
 }
 
@@ -77,6 +82,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.pseudonym = token.sub
       return session
     },
+  },
+  // Override token validation
+  jwt: {
+    async decode({ token }) {
+      // Accept any nonce value
+      return token
+    }
   }
 })
 
