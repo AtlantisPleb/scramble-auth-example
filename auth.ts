@@ -15,7 +15,6 @@ const PseudOIDCProvider: OAuthConfig<any> = {
   },
   token: {
     url: "https://auth.scramblesolutions.com/oauth2/token",
-    params: { grant_type: "authorization_code" }
   },
   userinfo: {
     url: "https://auth.scramblesolutions.com/oauth2/userinfo"
@@ -30,6 +29,10 @@ const PseudOIDCProvider: OAuthConfig<any> = {
       email: profile.email,
       emailVerified: true,
     }
+  },
+  // Specify how client credentials should be sent
+  client: {
+    token_endpoint_auth_method: "client_secret_basic"
   }
 }
 
