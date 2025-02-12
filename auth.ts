@@ -6,6 +6,7 @@ const PseudOIDCProvider = {
   id: "pseudoidc",
   name: "PseudOIDC",
   type: "oauth",
+  issuer: "https://auth.scramblesolutions.com",  // Match the token issuer
   authorization: {
     url: "https://auth.scramblesolutions.com/oauth2/auth",
     params: {
@@ -23,58 +24,24 @@ const PseudOIDCProvider = {
   },
   clientId: process.env.PSEUDOIDC_CLIENT_ID,
   clientSecret: process.env.PSEUDOIDC_CLIENT_SECRET,
-  // Custom token request
-  async getToken(params) {
-    const response = await fetch("https://auth.scramblesolutions.com/oauth2/token", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        grant_type: "authorization_code",
-        code: params.code,
-        redirect_uri: params.redirect_uri,
-        client_id: process.env.PSEUDOIDC_CLIENT_ID!,
-        client_secret: process.env.PSEUDOIDC_CLIENT_SECRET!,
-        code_verifier: params.code_verifier,
-      }).toString(),
-    })
-
-    console.log("Token response status:", response.status)
-    const text = await response.text()
-    console.log("Token response body:", text)
-
-    if (!response.ok) {
-      throw new Error(`Token request failed: ${text}`)
+  // Custom JWT validation
+  async jwt({ token, account }) {
+    if (account?.id_token) {
+      // Extract claims from the ID token
+      const claims = JSON.parse(Buffer.from(account.id_token.split('.')[1], 'base64').toString())
+      token.sub = claims.sub
+      token.iss = claims.iss
     }
-
-    const tokens = JSON.parse(text)
-    return {
-      tokens,
-      profile: {
-        sub: tokens.sub || "unknown",
-        email: tokens.email,
-      },
-    }
+    return token
   },
-  // Custom user profile request
-  async getUserProfile(tokens) {
-    const response = await fetch("https://auth.scramblesolutions.com/oauth2/userinfo", {
-      headers: {
-        Authorization: `Bearer ${tokens.access_token}`,
-      },
-    })
-
-    console.log("Profile response status:", response.status)
-    const data = await response.json()
-    console.log("Profile response data:", data)
-
+  // Custom profile handling
+  async profile(profile, tokens) {
     return {
-      id: data.sub,
-      email: data.email,
+      id: profile.sub,
+      email: profile.email,
       emailVerified: true,
     }
-  },
+  }
 }
 
 import { createStorage } from "unstorage"
@@ -104,8 +71,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (pathname === "/middleware-example") return !!auth
       return true
     },
-    jwt({ token, trigger, session }) {
+    jwt({ token, trigger, session, account }) {
       if (trigger === "update") token.name = session.user.name
+      if (account?.id_token) {
+        // Extract claims from the ID token
+        const claims = JSON.parse(Buffer.from(account.id_token.split('.')[1], 'base64').toString())
+        token.sub = claims.sub
+        token.iss = claims.iss
+      }
       return token
     },
     async session({ session, token }) {
