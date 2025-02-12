@@ -14,7 +14,8 @@ const PseudOIDCProvider: OAuthConfig<any> = {
     params: { scope: "openid" }
   },
   token: {
-    url: "https://auth.scramblesolutions.com/oauth2/token"
+    url: "https://auth.scramblesolutions.com/oauth2/token",
+    params: { grant_type: "authorization_code" }
   },
   userinfo: {
     url: "https://auth.scramblesolutions.com/oauth2/userinfo"
@@ -29,9 +30,7 @@ const PseudOIDCProvider: OAuthConfig<any> = {
       email: profile.email,
       emailVerified: true,
     }
-  },
-  // Override the default callback URL
-  callbackUrl: "http://localhost:8000/callback"
+  }
 }
 
 import { createStorage } from "unstorage"
@@ -71,7 +70,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.pseudonym = token.sub
       return session
     },
-  },
+  }
 })
 
 declare module "next-auth" {
