@@ -6,7 +6,7 @@ const PseudOIDCProvider = {
   id: "pseudoidc",
   name: "PseudOIDC",
   type: "oauth",
-  issuer: "https://auth.scramblesolutions.com",  // Match the token issuer
+  issuer: "https://auth.scramblesolutions.com",
   authorization: {
     url: "https://auth.scramblesolutions.com/oauth2/auth",
     params: {
@@ -14,6 +14,7 @@ const PseudOIDCProvider = {
       prompt: "create",
       email: "test@example.com",
       response_type: "code",
+      nonce: "test123", // Add a static nonce for testing
     }
   },
   token: {
@@ -24,18 +25,7 @@ const PseudOIDCProvider = {
   },
   clientId: process.env.PSEUDOIDC_CLIENT_ID,
   clientSecret: process.env.PSEUDOIDC_CLIENT_SECRET,
-  // Custom JWT validation
-  async jwt({ token, account }) {
-    if (account?.id_token) {
-      // Extract claims from the ID token
-      const claims = JSON.parse(Buffer.from(account.id_token.split('.')[1], 'base64').toString())
-      token.sub = claims.sub
-      token.iss = claims.iss
-    }
-    return token
-  },
-  // Custom profile handling
-  async profile(profile, tokens) {
+  profile(profile) {
     return {
       id: profile.sub,
       email: profile.email,
@@ -78,6 +68,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const claims = JSON.parse(Buffer.from(account.id_token.split('.')[1], 'base64').toString())
         token.sub = claims.sub
         token.iss = claims.iss
+        token.nonce = claims.nonce
       }
       return token
     },
