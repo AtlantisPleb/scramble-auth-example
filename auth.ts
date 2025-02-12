@@ -19,6 +19,21 @@ const PseudOIDCProvider: OAuthConfig<any> = {
   },
   token: {
     url: "https://auth.scramblesolutions.com/oauth2/token",
+    // Override the token request to match PseudoIDC's expectations
+    async request({ provider, params, client }) {
+      const response = await fetch(provider.token.url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          ...params,
+          client_id: client.client_id,
+          client_secret: client.client_secret,
+        }),
+      })
+      return await response.json()
+    }
   },
   userinfo: {
     url: "https://auth.scramblesolutions.com/oauth2/userinfo"
@@ -56,7 +71,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   theme: { logo: "https://authjs.dev/img/logo-sm.png" },
   adapter: UnstorageAdapter(storage),
   providers: [PseudOIDCProvider],
-  basePath: "/api/auth", // Set the base path to match Next.js API routes
   session: { strategy: "jwt" },
   callbacks: {
     authorized({ request, auth }) {
