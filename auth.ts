@@ -20,7 +20,9 @@ const PseudOIDCProvider: OAuthConfig<any> = {
       email: profile.email,
       emailVerified: true,
     }
-  }
+  },
+  // Override the default callback URL
+  callbackUrl: "http://localhost:8000/callback"
 }
 
 import { createStorage } from "unstorage"
