@@ -9,7 +9,7 @@ import { UnstorageAdapter } from "@auth/unstorage-adapter"
 const PseudOIDCProvider = {
   id: "pseudoidc",
   name: "PseudOIDC",
-  type: "oauth" as "oauth",
+  type: "oidc" as "oidc",
   issuer: "https://auth.scramblesolutions.com",
   authorization: {
     url: "https://auth.scramblesolutions.com/oauth2/auth",
