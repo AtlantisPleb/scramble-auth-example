@@ -4,93 +4,71 @@ This guide shows how to integrate PseudOIDC with your application. PseudOIDC is 
 
 ## Quick Start
 
-1. Get your OAuth credentials (we'll create these for you):
-```
-CLIENT_ID=client_tuK5lXqCJIAqkPrEOn6DTWAaxIzr1y1l
-CLIENT_SECRET=secret_8Qm5lXqCJIAqkPrEOn6DTWAaxIzr2y1l
-```
-
-2. Configure OIDC endpoints:
-```
-AUTHORIZATION_URL=https://auth.scramblesolutions.com/oauth2/auth
-TOKEN_URL=https://auth.scramblesolutions.com/oauth2/token
-```
-
-## Integration Options
-
-You have two main options for handling user identity:
-
-### Option 1: Store Email (Standard Setup)
-```typescript
-// Request both 'openid' and 'email' scopes
-const scopes = ['openid', 'email']
-
-// You'll receive:
-{
-  sub: 'user_8zHkwRfa...',  // Stable pseudonym for this user
-  email: 'user@example.com'  // User's email address
-}
-```
-
-### Option 2: Email-less (Maximum Privacy)
-```typescript
-// Request only 'openid' scope
-const scopes = ['openid']
-
-// You'll receive:
-{
-  sub: 'user_8zHkwRfa...'  // Stable pseudonym for this user
-}
-```
-
-## Framework Examples
-
-### Next.js (with NextAuth.js)
-
-1. Install NextAuth:
+1. Install dependencies:
 ```bash
 npm install next-auth
 ```
 
-2. Create auth configuration (`pages/api/auth/[...nextauth].ts`):
+2. Get your OAuth credentials from Scramble:
+```env
+PSEUDOIDC_CLIENT_ID=client_xxx...
+PSEUDOIDC_CLIENT_SECRET=secret_xxx...
+```
+
+3. Create `auth.ts` in your app root (see [working example](https://github.com/AtlantisPleb/scramble-auth-example/blob/main/auth.ts)):
 ```typescript
-import NextAuth from 'next-auth'
-import { OAuthConfig } from 'next-auth/providers'
+import NextAuth from "next-auth"
 
 // PseudOIDC provider configuration
-const PseudOIDCProvider: OAuthConfig<any> = {
-  id: 'pseudoidc',
-  name: 'PseudOIDC',
-  type: 'oauth',
-  wellKnown: 'https://auth.scramblesolutions.com/.well-known/openid-configuration',
-  authorization: { params: { scope: 'openid email' } },
-  clientId: process.env.PSEUDOIDC_CLIENT_ID,
-  clientSecret: process.env.PSEUDOIDC_CLIENT_SECRET,
-  idToken: true,
-  profile(profile) {
-    return {
-      id: profile.sub,           // Use pseudonym as internal ID
-      email: profile.email,      // Optional: store email if requested
-      emailVerified: true,       // Email is verified by our service
+const PseudOIDCProvider = {
+  id: "pseudoidc",
+  name: "PseudOIDC",
+  type: "oidc",
+  issuer: "https://auth.scramblesolutions.com",
+  authorization: {
+    params: {
+      scope: "openid",
+      prompt: "create",
+      email: "test@example.com",
     }
   },
+  checks: ["nonce"], // Required for OIDC validation
+  clientId: process.env.PSEUDOIDC_CLIENT_ID,
+  clientSecret: process.env.PSEUDOIDC_CLIENT_SECRET,
 }
 
-export default NextAuth({
+export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [PseudOIDCProvider],
+  session: { strategy: "jwt" },
   callbacks: {
+    jwt({ token, account }) {
+      if (account?.id_token) {
+        // Extract claims from the ID token
+        const claims = JSON.parse(Buffer.from(account.id_token.split('.')[1], 'base64').toString())
+        token.sub = claims.sub
+        token.iss = claims.iss
+      }
+      return token
+    },
     async session({ session, token }) {
-      // Add pseudonym to session if needed
+      // Add pseudonym to session
       session.pseudonym = token.sub
       return session
     },
-  },
+  }
 })
+
+// Add pseudonym to Session type
+declare module "next-auth" {
+  interface Session {
+    pseudonym?: string
+  }
+}
 ```
 
-3. Use in your components:
+4. Use in your components:
 ```typescript
-import { useSession, signIn, signOut } from 'next-auth/react'
+import { useSession, signIn, signOut } from "next-auth/react"
 
 export default function Header() {
   const { data: session } = useSession()
@@ -98,223 +76,83 @@ export default function Header() {
   if (session) {
     return (
       <>
-        {/* Option 1: With email */}
-        Welcome {session.user.email}!
-
-        {/* Option 2: Email-less */}
         User {session.pseudonym} logged in!
-
         <button onClick={() => signOut()}>Sign out</button>
       </>
     )
   }
   return (
-    <button onClick={() => signIn('pseudoidc')}>Sign in</button>
+    <button onClick={() => signIn("pseudoidc")}>Sign in</button>
   )
 }
 ```
 
-### React (with OIDC-Client)
+## Key Configuration Points
 
-1. Install dependencies:
-```bash
-npm install oidc-client-ts
-```
+1. **Provider Type**: Use `type: "oidc"` (not "oauth") for proper OIDC handling
+2. **Nonce Validation**: Include `checks: ["nonce"]` to enable proper OIDC nonce validation
+3. **JWT Strategy**: Use `session: { strategy: "jwt" }` for token-based sessions
+4. **Claims Handling**: Extract and store the pseudonym from ID token claims
 
-2. Configure OIDC client:
+## Session Data
+
+After successful authentication, your session will contain:
 ```typescript
-import { UserManager } from 'oidc-client-ts'
-
-const oidcConfig = {
-  authority: 'https://auth.scramblesolutions.com',
-  client_id: process.env.PSEUDOIDC_CLIENT_ID,
-  client_secret: process.env.PSEUDOIDC_CLIENT_SECRET,
-  redirect_uri: 'http://localhost:3000/callback',
-  response_type: 'code',
-  scope: 'openid email',  // Remove email for maximum privacy
-}
-
-export const userManager = new UserManager(oidcConfig)
-```
-
-3. Create login component:
-```typescript
-import { useEffect, useState } from 'react'
-import { userManager } from './oidc-config'
-
-export function Login() {
-  const [user, setUser] = useState(null)
-
-  useEffect(() => {
-    userManager.getUser().then(setUser)
-  }, [])
-
-  const login = () => userManager.signinRedirect()
-  const logout = () => userManager.signoutRedirect()
-
-  if (user) {
-    return (
-      <div>
-        {/* Option 1: With email */}
-        <p>Welcome {user.profile.email}!</p>
-
-        {/* Option 2: Email-less */}
-        <p>User {user.profile.sub} logged in!</p>
-
-        <button onClick={logout}>Logout</button>
-      </div>
-    )
-  }
-
-  return <button onClick={login}>Login</button>
+{
+  "user": {},  // Empty by default
+  "expires": "2025-03-20T02:01:46.154Z",
+  "pseudonym": "user_MzUHnPBcwhQnIXbQPoiCZ7aUyxNyKbO2tlWTQGUw-Pk"
 }
 ```
 
-### Express.js (with Passport)
-
-1. Install dependencies:
-```bash
-npm install passport passport-openidconnect
-```
-
-2. Configure Passport:
-```typescript
-import passport from 'passport'
-import { Strategy } from 'passport-openidconnect'
-
-passport.use('pseudoidc', new Strategy({
-  issuer: 'https://auth.scramblesolutions.com',
-  authorizationURL: 'https://auth.scramblesolutions.com/oauth2/auth',
-  tokenURL: 'https://auth.scramblesolutions.com/oauth2/token',
-  clientID: process.env.PSEUDOIDC_CLIENT_ID,
-  clientSecret: process.env.PSEUDOIDC_CLIENT_SECRET,
-  callbackURL: 'http://localhost:3000/auth/callback',
-  scope: ['openid', 'email']  // Remove email for maximum privacy
-}, (issuer, profile, done) => {
-  return done(null, {
-    id: profile.sub,           // Use pseudonym as internal ID
-    email: profile.email       // Optional: store email if requested
-  })
-}))
-
-// Session serialization
-passport.serializeUser((user, done) => done(null, user))
-passport.deserializeUser((user, done) => done(null, user))
-```
-
-3. Add auth routes:
-```typescript
-app.get('/auth/login', passport.authenticate('pseudoidc'))
-
-app.get('/auth/callback',
-  passport.authenticate('pseudoidc', {
-    successRedirect: '/',
-    failureRedirect: '/login'
-  })
-)
-```
-
-## Database Schema Examples
-
-### Option 1: With Email
-```sql
-CREATE TABLE users (
-  id TEXT PRIMARY KEY,          -- Store the pseudonym (sub claim)
-  email TEXT UNIQUE,            -- Store the email if needed
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
-
-### Option 2: Email-less
-```sql
-CREATE TABLE users (
-  id TEXT PRIMARY KEY,          -- Store only the pseudonym
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-```
-
-## Common Patterns
-
-### User Profile Storage
-```typescript
-// After successful authentication:
-async function handleAuth(tokens) {
-  const { sub, email } = tokens.claims
-
-  // Option 1: Store email
-  await db.query(
-    'INSERT INTO users (id, email) VALUES ($1, $2) ON CONFLICT DO NOTHING',
-    [sub, email]
-  )
-
-  // Option 2: Email-less
-  await db.query(
-    'INSERT INTO users (id) VALUES ($1) ON CONFLICT DO NOTHING',
-    [sub]
-  )
-}
-```
-
-### User Lookup
-```typescript
-// The pseudonym (sub) is stable per user per client
-async function getUser(pseudonym) {
-  const user = await db.query(
-    'SELECT * FROM users WHERE id = $1',
-    [pseudonym]
-  )
-  return user
-}
-```
-
-### Migration from Existing Auth
-```typescript
-// If you have existing users, you can:
-// 1. Add PseudOIDC as additional login option
-// 2. Link accounts when users use both
-async function linkAccounts(existingUserId, pseudonym, email) {
-  await db.query(
-    'UPDATE users SET pseudoidc_id = $1 WHERE id = $2 AND email = $3',
-    [pseudonym, existingUserId, email]
-  )
-}
-```
+The `pseudonym` is a stable identifier for this user in your application.
 
 ## Best Practices
 
-1. **Pseudonym Handling**
-   - Store the pseudonym (`sub` claim) as the user identifier
-   - It's stable for each user per client application
-   - Different apps get different pseudonyms for same user
+1. **Environment Variables**
+   - Store client credentials in `.env`:
+     ```env
+     PSEUDOIDC_CLIENT_ID=client_xxx...
+     PSEUDOIDC_CLIENT_SECRET=secret_xxx...
+     ```
+   - Never commit these values to version control
 
-2. **Email Usage**
-   - Only request email scope if you need it
-   - Consider storing email separately from core user data
-   - Allow users to delete their email while keeping account
-
-3. **Security**
-   - Store client secret securely
-   - Use HTTPS for all endpoints
-   - Validate tokens on backend
+2. **Security**
+   - Use HTTPS in production
+   - Keep client secret secure
    - Don't share pseudonyms between applications
 
-4. **Privacy**
-   - Start with minimal scopes
-   - Add claims only as needed
-   - Allow users to control data sharing
-   - Document what you store and why
+3. **Error Handling**
+   - Add error pages for authentication failures
+   - Handle session expiration gracefully
+
+## Optional Features
+
+1. **Debug Mode**
+   ```typescript
+   export const { handlers, auth, signIn, signOut } = NextAuth({
+     debug: true,  // Enable detailed logs
+     // ...
+   })
+   ```
+
+2. **Custom Storage**
+   ```typescript
+   import { createStorage } from "unstorage"
+   import { UnstorageAdapter } from "@auth/unstorage-adapter"
+   
+   const storage = createStorage({
+     // Configure your storage backend
+   })
+   
+   export const { handlers, auth, signIn, signOut } = NextAuth({
+     adapter: UnstorageAdapter(storage),
+     // ...
+   })
+   ```
 
 ## Getting Help
 
-1. Check common issues in our FAQ
+1. Check [common issues](https://github.com/OpenAgentsInc/pseudoidc/issues)
 2. Join our Discord for developer support
-3. Open an issue on GitHub
-4. Contact support@scramblesolutions.com
-
-## What's Next
-
-Coming soon:
-1. Additional claims (KYC status, age verification, etc.)
-2. Admin dashboard for client management
-3. Enhanced privacy controls
-4. Analytics and monitoring tools
+3. Contact support@scramblesolutions.com
