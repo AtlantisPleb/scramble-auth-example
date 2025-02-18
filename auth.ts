@@ -1,11 +1,15 @@
-import NextAuth from "next-auth"
 import "next-auth/jwt"
+import NextAuth from "next-auth"
+import { createStorage } from "unstorage"
+import memoryDriver from "unstorage/drivers/memory"
+import vercelKVDriver from "unstorage/drivers/vercel-kv"
+import { UnstorageAdapter } from "@auth/unstorage-adapter"
 
 // PseudOIDC provider configuration
 const PseudOIDCProvider = {
   id: "pseudoidc",
   name: "PseudOIDC",
-  type: "oauth",
+  type: "oauth" as "oauth",
   issuer: "https://auth.scramblesolutions.com",
   authorization: {
     url: "https://auth.scramblesolutions.com/oauth2/auth",
@@ -39,18 +43,13 @@ const PseudOIDCProvider = {
   }
 }
 
-import { createStorage } from "unstorage"
-import memoryDriver from "unstorage/drivers/memory"
-import vercelKVDriver from "unstorage/drivers/vercel-kv"
-import { UnstorageAdapter } from "@auth/unstorage-adapter"
-
 const storage = createStorage({
   driver: process.env.VERCEL
     ? vercelKVDriver({
-        url: process.env.AUTH_KV_REST_API_URL,
-        token: process.env.AUTH_KV_REST_API_TOKEN,
-        env: false,
-      })
+      url: process.env.AUTH_KV_REST_API_URL,
+      token: process.env.AUTH_KV_REST_API_TOKEN,
+      env: false,
+    })
     : memoryDriver(),
 })
 
