@@ -1,15 +1,11 @@
-import "next-auth/jwt"
 import NextAuth from "next-auth"
-import { createStorage } from "unstorage"
-import memoryDriver from "unstorage/drivers/memory"
-import vercelKVDriver from "unstorage/drivers/vercel-kv"
-import { UnstorageAdapter } from "@auth/unstorage-adapter"
+import "next-auth/jwt"
 
 // PseudOIDC provider configuration
 const PseudOIDCProvider = {
   id: "pseudoidc",
   name: "PseudOIDC",
-  type: "oidc" as "oidc",
+  type: "oidc",
   issuer: "https://auth.scramblesolutions.com",
   authorization: {
     url: "https://auth.scramblesolutions.com/oauth2/auth",
@@ -17,8 +13,6 @@ const PseudOIDCProvider = {
       scope: "openid",
       prompt: "create",
       email: "test@example.com",
-      response_type: "code",
-      nonce: "test123", // Add a static nonce for testing
     }
   },
   token: {
@@ -35,21 +29,21 @@ const PseudOIDCProvider = {
       email: profile.email,
       emailVerified: true,
     }
-  },
-  // Override token validation
-  async validateToken(token) {
-    // Accept any nonce value for now
-    return true
   }
 }
+
+import { createStorage } from "unstorage"
+import memoryDriver from "unstorage/drivers/memory"
+import vercelKVDriver from "unstorage/drivers/vercel-kv"
+import { UnstorageAdapter } from "@auth/unstorage-adapter"
 
 const storage = createStorage({
   driver: process.env.VERCEL
     ? vercelKVDriver({
-      url: process.env.AUTH_KV_REST_API_URL,
-      token: process.env.AUTH_KV_REST_API_TOKEN,
-      env: false,
-    })
+        url: process.env.AUTH_KV_REST_API_URL,
+        token: process.env.AUTH_KV_REST_API_TOKEN,
+        env: false,
+      })
     : memoryDriver(),
 })
 
@@ -81,13 +75,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.pseudonym = token.sub
       return session
     },
-  },
-  // Override token validation
-  jwt: {
-    async decode({ token }) {
-      // Accept any nonce value
-      return token
-    }
   }
 })
 
